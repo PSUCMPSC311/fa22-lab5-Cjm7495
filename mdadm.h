@@ -18,9 +18,9 @@ int mdadm_revoke_write_permission(void);
 
 
 /* Return the number of bytes read on success, -1 on failure. */
-int mdadm_read(uint32_t start_addr, uint32_t read_len, uint8_t *buf);
+int mdadm_read(uint32_t addr, uint32_t len, uint8_t *buf);
 
 /* Return the number of bytes written on success, -1 on failure. */
-int mdadm_write(uint32_t start_addr, uint32_t write_len, const uint8_t *buf);
+int mdadm_write(uint32_t addr, uint32_t len, const uint8_t *buf);
 
 #endif
