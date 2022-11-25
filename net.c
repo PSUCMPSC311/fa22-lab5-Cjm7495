@@ -62,13 +62,13 @@ and then use the length field in the header to determine whether it is needed to
 a block of data from the server. You may use the above nread function here.  
 */
 static bool recv_packet(int sd, uint32_t *op, uint8_t *ret, uint8_t *block) {
-  if (nread(sd, 4, op) == false){
+  /*if (nread(sd, 4, op) == false){
     return false;
-  }
+    }*/
   if (nread(sd, 1, ret) == false){
     return false;
   }
-  if (&ret > 1){
+  if (*ret > 1){
     if (nread(sd, JBOD_BLOCK_SIZE, block) == false){
       return false;
     }
@@ -89,8 +89,8 @@ The above information (when applicable) has to be wrapped into a jbod request pa
 You may call the above nwrite function to do the actual sending.  
 */
 static bool send_packet(int sd, uint32_t op, uint8_t *block) {
-  int buf;
-  uint_8 op_bytes[4];
+  uint8_t buf = 0;
+  uint8_t op_bytes[4];
   op_bytes[0] = op & 0x000F;
   op_bytes[1] = op & 0x00F0;
   op_bytes[2] = op & 0x0F00;
@@ -98,21 +98,20 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   if (nwrite(buf, 4, op_bytes) == false){
     return false;
   }
-  uint8_t temp;
-  if (block == NULL){
-    temp = 0;
-  } else{
-    temp = 2;
+  uint8_t *temp = 0;
+  if (block != NULL){
+    *temp = 2;
   }
   if (nwrite(buf, 1, temp) == false){
     return false;
   }
   if (block != NULL){
-    if (nwrite(&buf, JBOD_BLOCK_SIZE, block) == false){
+    if (nwrite(buf, JBOD_BLOCK_SIZE, block) == false){
       return false;
     }
   }
-  if(nwrite(sd, JBOD_BLOCK_SIZE+HEADER_LEN, buf) == false){
+  uint8_t *bufp = &buf;
+  if(nwrite(sd, JBOD_BLOCK_SIZE+HEADER_LEN, bufp) == false){
     return false;
   }
   return true;
@@ -162,10 +161,10 @@ return: 0 means success, -1 means failure.
 int jbod_client_operation(uint32_t op, uint8_t *block) {
   if (cli_sd != -1){
     send_packet(cli_sd, op, block);
-    uint32_t op;
-    uint8_t ret;
-    recv_packet(cli_sd, *op, *ret, block);
-    if ((ret & 1) == 1) {
+    uint32_t *op = 0;
+    uint8_t *ret = 0;
+    recv_packet(cli_sd, op, ret, block);
+    if ((*ret & 1) == 1) {
       return -1;
     }
     return 0;
