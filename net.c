@@ -46,6 +46,7 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
   return true;
 }
 
+
 /* Through this function call the client attempts to receive a packet from sd 
 (i.e., receiving a response from the server.). It happens after the client previously 
 forwarded a jbod operation call via a request message to the server.  
@@ -61,16 +62,15 @@ and then use the length field in the header to determine whether it is needed to
 a block of data from the server. You may use the above nread function here.  
 */
 static bool recv_packet(int sd, uint32_t *op, uint8_t *ret, uint8_t *block) {
-  uint8_t op_bytes[4];
-  if (nread(sd, 4, op_bytes) == false){
+  int buf_len = JBOD_BLOCK_SIZE+HEADER_LEN;
+  uint8_t buf[buf_len];
+  if (nread(sd, buf_len, buf) == false){
     return false;
   }
-  if (nread(sd, 1, ret) == false){
-    return false;
-  }
+  ret = &buf[buf_len-5];
   if (*ret > 1){
-    if (nread(sd, JBOD_BLOCK_SIZE, block) == false){
-      return false;
+    for (int i=0; i<JBOD_BLOCK_SIZE; i++){
+      block[i] = buf[buf_len-6-i];
     }
   }
   return true;
@@ -89,26 +89,30 @@ The above information (when applicable) has to be wrapped into a jbod request pa
 You may call the above nwrite function to do the actual sending.  
 */
 static bool send_packet(int sd, uint32_t op, uint8_t *block) {
-  uint8_t buf[JBOD_BLOCK_SIZE+HEADER_LEN];
+  int buf_len;
   uint8_t op_bytes[4];
-  op_bytes[0] = op & 0x000F;
-  op_bytes[1] = (op & 0x00F0) >> 8;
-  op_bytes[2] = (op & 0x0F00) >> 16;
-  op_bytes[3] = (op & 0xF000) >> 24;
-  uint8_t ret = 0;
+  op_bytes[3] = op & 0xFF;
+  op_bytes[2] = (op >> 8) & 0xFF;
+  op_bytes[1] = (op >> 16) & 0xFF;
+  op_bytes[0] = (op >> 24) & 0xFF;
   if (block != NULL){
-    ret = 2;
+    buf_len = JBOD_BLOCK_SIZE+HEADER_LEN;
+  } else{
+    buf_len = HEADER_LEN;
   }
+  uint8_t buf[buf_len];
   for (int i=0; i<4; i++){
     buf[i] = op_bytes[i];
   }
-  buf[4] = ret;
   if (block != NULL){
+    buf[4] = 2;
     for (int i=0; i<JBOD_BLOCK_SIZE; i++){
       buf[i+HEADER_LEN] = block[i];
     }
+  } else{
+    buf[4] = 0;
   }
-  if(nwrite(sd, JBOD_BLOCK_SIZE+HEADER_LEN, buf) == false){
+  if(nwrite(sd, buf_len, buf) == false){
     return false;
   }
   return true;
@@ -161,10 +165,11 @@ int jbod_client_operation(uint32_t op, uint8_t *block) {
       return -1;
     }
     uint8_t ret[1];
-    if (recv_packet(cli_sd, &op, ret, block) == false){
+    uint32_t temp_op[1];
+    if (recv_packet(cli_sd, temp_op, ret, block) == false){
       return -1;
     }
-    if ((*ret & 1) == 1) {
+    if (ret[0] == 1) {
       return -1;
     }
     return 0;
