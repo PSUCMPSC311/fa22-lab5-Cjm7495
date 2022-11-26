@@ -62,15 +62,18 @@ and then use the length field in the header to determine whether it is needed to
 a block of data from the server. You may use the above nread function here.  
 */
 static bool recv_packet(int sd, uint32_t *op, uint8_t *ret, uint8_t *block) {
-  int buf_len = JBOD_BLOCK_SIZE+HEADER_LEN;
-  uint8_t buf[buf_len];
-  if (nread(sd, buf_len, buf) == false){
+  uint8_t header[HEADER_LEN];
+  if (nread(sd, HEADER_LEN, header) == false){
     return false;
   }
-  ret = &buf[buf_len-5];
+  ret = &header[4];
   if (*ret > 1){
+    uint8_t buf[JBOD_BLOCK_SIZE];
+    if (nread(sd, JBOD_BLOCK_SIZE, buf) == false){
+      return false;
+    }
     for (int i=0; i<JBOD_BLOCK_SIZE; i++){
-      block[i] = buf[buf_len-6-i];
+      block[i] = buf[i];
     }
   }
   return true;
