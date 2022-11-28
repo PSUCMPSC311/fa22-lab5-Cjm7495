@@ -18,14 +18,16 @@ int cli_sd = -1;
 It may need to call the system call "read" multiple times to reach the given size len. 
 */
 static bool nread(int fd, int len, uint8_t *buf) {
-  int temp = 0;
+  int temp;
   int read_len = len;
+  int pos = 0;
   while (read_len != 0){
-    read_len -= temp;
-    temp = read(fd, buf, read_len);
+    temp = read(fd, &buf[pos], read_len);
     if (temp == -1){
       return false;
     }
+    read_len -= temp;
+    pos += temp;
   }
   return true;
 }
@@ -34,14 +36,16 @@ static bool nread(int fd, int len, uint8_t *buf) {
 It may need to call the system call "write" multiple times to reach the size len.
 */
 static bool nwrite(int fd, int len, uint8_t *buf) {
-  int temp = 0;
+  int temp;
   int write_len = len;
+  int pos = 0;
   while (write_len != 0){
-    write_len -= temp;
-    temp = write(fd, buf, write_len);
+    temp = write(fd, &buf[pos], write_len);
     if (temp == -1){
       return false;
     }
+    write_len -= temp;
+    pos += temp;
   }
   return true;
 }
@@ -66,7 +70,8 @@ static bool recv_packet(int sd, uint32_t *op, uint8_t *ret, uint8_t *block) {
   if (nread(sd, HEADER_LEN, header) == false){
     return false;
   }
-  ret = &header[4];
+  *op = (header[3] << 24) | (header[2] << 16) | (header[1] << 8) | header[0];
+  *ret = header[4];
   if (*ret > 1){
     uint8_t buf[JBOD_BLOCK_SIZE];
     if (nread(sd, JBOD_BLOCK_SIZE, buf) == false){
