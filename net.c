@@ -21,6 +21,7 @@ static bool nread(int fd, int len, uint8_t *buf) {
   int temp;
   int read_len = len;
   int pos = 0;
+  // reads from fd until all of the bytes are read
   while (read_len != 0){
     temp = read(fd, &buf[pos], read_len);
     if (temp == -1){
@@ -39,6 +40,7 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
   int temp;
   int write_len = len;
   int pos = 0;
+  // writes to fd until all of the bytes are written
   while (write_len != 0){
     temp = write(fd, &buf[pos], write_len);
     if (temp == -1){
@@ -72,6 +74,7 @@ static bool recv_packet(int sd, uint32_t *op, uint8_t *ret, uint8_t *block) {
   }
   *op = (header[3] << 24) | (header[2] << 16) | (header[1] << 8) | header[0];
   *ret = header[4];
+  // copies buf into block if there is block in the payload
   if (*ret > 1){
     uint8_t buf[JBOD_BLOCK_SIZE];
     if (nread(sd, JBOD_BLOCK_SIZE, buf) == false){
@@ -103,15 +106,18 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   op_bytes[2] = (op >> 8) & 0xFF;
   op_bytes[1] = (op >> 16) & 0xFF;
   op_bytes[0] = (op >> 24) & 0xFF;
+  // determines the length of the buf depending on whether there is a block or not
   if (block != NULL){
     buf_len = JBOD_BLOCK_SIZE+HEADER_LEN;
   } else{
     buf_len = HEADER_LEN;
   }
   uint8_t buf[buf_len];
+  // copies the bytes of op into the buf
   for (int i=0; i<4; i++){
     buf[i] = op_bytes[i];
   }
+  // copies the block into the payload of the buff if there is a block and assigns the appropriate value to the info code
   if (block != NULL){
     buf[4] = 2;
     for (int i=0; i<JBOD_BLOCK_SIZE; i++){
@@ -134,16 +140,19 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
  * you will not call it in mdadm.c
 */
 bool jbod_connect(const char *ip, uint16_t port) {
+  // assigns cli_sd to the socket
   cli_sd = socket(AF_INET, SOCK_STREAM, 0);
   if (cli_sd == -1){
     return false;
   }
+  // creates the socket address
   struct sockaddr_in caddr;
   caddr.sin_family = AF_INET;
   caddr.sin_port = htons(port);
   if (inet_aton(ip, &caddr.sin_addr) == 0){
     return false;
   }
+  // connects to the server
   if (connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr)) == -1){
     return false;
   }
@@ -169,14 +178,16 @@ return: 0 means success, -1 means failure.
 */
 int jbod_client_operation(uint32_t op, uint8_t *block) {
   if (cli_sd != -1){
+    // sends the packet
     if (send_packet(cli_sd, op, block) == false){
       return -1;
     }
     uint8_t ret[1];
-    uint32_t temp_op[1];
-    if (recv_packet(cli_sd, temp_op, ret, block) == false){
+    // receives the packet
+    if (recv_packet(cli_sd, &op, ret, block) == false){
       return -1;
     }
+    // returns the return value from the info code
     if (ret[0] == 1) {
       return -1;
     }
